@@ -172,24 +172,30 @@ export interface Database {
           id: string;
           job_id: string;
           user_id: string;
-          status: 'pending' | 'accepted' | 'rejected' | 'completed';
+          status: 'Applied' | 'Under Review' | 'Accepted' | 'Declined' | 'Completed' | 'Cancelled';
+          payment_id?: string | null;
           applied_at: string;
-          notes: string | null;
+          updated_at?: string;
+          notes?: string | null;
         };
         Insert: {
           id?: string;
           job_id: string;
           user_id: string;
-          status?: 'pending' | 'accepted' | 'rejected' | 'completed';
+          status?: 'Applied' | 'Under Review' | 'Accepted' | 'Declined' | 'Completed' | 'Cancelled';
+          payment_id?: string | null;
           applied_at?: string;
+          updated_at?: string;
           notes?: string | null;
         };
         Update: {
           id?: string;
           job_id?: string;
           user_id?: string;
-          status?: 'pending' | 'accepted' | 'rejected' | 'completed';
+          status?: 'Applied' | 'Under Review' | 'Accepted' | 'Declined' | 'Completed' | 'Cancelled';
+          payment_id?: string | null;
           applied_at?: string;
+          updated_at?: string;
           notes?: string | null;
         };
         Relationships: [

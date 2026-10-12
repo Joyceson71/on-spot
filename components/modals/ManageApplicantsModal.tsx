@@ -47,7 +47,7 @@ export default function ManageApplicantsModal() {
       const supabase = getSupabaseBrowserClient();
       supabase
         .from('applications')
-        .update({ status: 'accepted' })
+        .update({ status: 'Accepted' })
         .eq('id', appId)
         .then(() => {});
     }
@@ -65,7 +65,7 @@ export default function ManageApplicantsModal() {
       const supabase = getSupabaseBrowserClient();
       supabase
         .from('applications')
-        .update({ status: 'rejected' })
+        .update({ status: 'Declined' })
         .eq('id', appId)
         .then(() => {});
     }

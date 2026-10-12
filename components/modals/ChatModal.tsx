@@ -126,14 +126,18 @@ export default function ChatModal() {
     setMessages((prev) => [...prev, userMsg]);
     setInputMessage('');
 
-    if (isSupabaseConfigured()) {
+    const isUserAuth = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userProfile.id);
+    if (isSupabaseConfigured() && isUserAuth) {
       try {
         const supabase = getSupabaseBrowserClient();
-        (supabase.from('messages') as any).insert({
-          conversation_id: convId,
-          sender_id: userProfile.id,
-          message: text,
-        });
+        supabase
+          .from('messages')
+          .insert({
+            conversation_id: convId,
+            sender_id: userProfile.id,
+            message: text,
+          })
+          .then(() => {});
       } catch (err) {
         console.warn('Supabase message send error:', err);
       }
