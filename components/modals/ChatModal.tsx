@@ -1,0 +1,165 @@
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { useApp } from '@/context/AppContext';
+import { ChatMessage } from '@/types';
+
+export default function ChatModal() {
+  const { activeModal, activeModalShift, closeModal, userProfile } = useApp();
+
+  const [inputMessage, setInputMessage] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const dealerName = activeModalShift?.dealerName || 'Dealer';
+  const dealerAvatarLetter = dealerName.charAt(0).toUpperCase() || 'D';
+
+  useEffect(() => {
+    if (activeModal === 'chat-modal') {
+      // Default welcome message from dealer
+      setMessages([
+        {
+          id: 'welcome-msg',
+          senderId: 'dealer_system',
+          senderName: dealerName,
+          receiverId: userProfile.id,
+          message: `Hello! I am ${dealerName}. Thank you for your interest in "${activeModalShift?.title || 'our opening'}". How can I assist you?`,
+          timestamp: new Date().toISOString(),
+          read: true,
+        },
+      ]);
+    }
+  }, [activeModal, activeModalShift, dealerName, userProfile.id]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
+
+  if (activeModal !== 'chat-modal') {
+    return null;
+  }
+
+  const handleSend = () => {
+    const text = inputMessage.trim();
+    if (!text) return;
+
+    const userMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      senderId: userProfile.id,
+      senderName: userProfile.name,
+      receiverId: activeModalShift?.dealerName || 'dealer',
+      message: text,
+      timestamp: new Date().toISOString(),
+      read: true,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInputMessage('');
+
+    // Simulate dealer response
+    setTimeout(() => {
+      setIsTyping(true);
+      setTimeout(() => {
+        setIsTyping(false);
+        const replyMsg: ChatMessage = {
+          id: `reply-${Date.now()}`,
+          senderId: 'dealer_system',
+          senderName: dealerName,
+          receiverId: userProfile.id,
+          message: `Thanks for your message! Looking forward to having you on shift for ${activeModalShift?.title || 'the gig'}.`,
+          timestamp: new Date().toISOString(),
+          read: true,
+        };
+        setMessages((prev) => [...prev, replyMsg]);
+      }, 1500);
+    }, 600);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSend();
+    }
+  };
+
+  return (
+    <div
+      className={`chat-modal-overlay ${activeModal === 'chat-modal' ? 'open' : ''}`}
+      id="chat-modal"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closeModal('chat-modal');
+      }}
+    >
+      <div className="chat-container">
+        <div className="chat-header">
+          <button className="chat-back-btn" onClick={() => closeModal('chat-modal')}>
+            ‹
+          </button>
+          <div className="chat-avatar" id="chat-avatar-text">
+            {dealerAvatarLetter}
+          </div>
+          <div className="chat-user-info">
+            <div className="chat-user-name" id="chat-user-name">
+              {dealerName}
+            </div>
+            <div className="chat-user-status" id="chat-user-status">
+              Online
+            </div>
+          </div>
+        </div>
+
+        <div className="chat-messages" id="chat-messages">
+          {messages.map((msg) => {
+            const isSent = msg.senderId === userProfile.id;
+            const timeStr = new Date(msg.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+            return (
+              <div
+                key={msg.id}
+                className={`chat-message ${isSent ? 'sent' : 'received'}`}
+              >
+                {msg.message}
+                <span className="chat-message-time">{timeStr}</span>
+              </div>
+            );
+          })}
+          {isTyping && (
+            <div className="chat-typing" id="chat-typing-indicator" style={{ padding: '0 16px' }}>
+              typing...
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="chat-input-area">
+          <input
+            type="text"
+            className="chat-input"
+            id="chat-input"
+            placeholder="Type a message..."
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+          />
+          <button className="chat-send-btn" onClick={handleSend}>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

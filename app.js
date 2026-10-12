@@ -6,31 +6,36 @@
 // Category Media Configuration (Local assets with reliable Unsplash fallbacks)
 const CATEGORY_MEDIA = {
   Catering: {
-    src: "assets/catering.jpg",
+    src:
+      "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=800&q=80",
     fallback:
       "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=800&q=80",
     alt: "Catering banquet food buffet",
   },
   Promotions: {
-    src: "assets/promotions.jpg",
+    src:
+      "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80",
     fallback:
       "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80",
     alt: "Brand promotion exhibition launch",
   },
   Pamphlet: {
-    src: "assets/pamphlet.jpg",
+    src:
+      "https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80",
     fallback:
       "https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80",
     alt: "Flyer and pamphlet distribution",
   },
   Ushering: {
-    src: "assets/ushering.jpg",
+    src:
+      "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=800&q=80",
     fallback:
       "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=800&q=80",
     alt: "VIP ushering & hospitality service",
   },
   Setup: {
-    src: "assets/stage.jpg",
+    src:
+      "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=800&q=80",
     fallback:
       "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=800&q=80",
     alt: "Stage sound & event setup",
@@ -1699,7 +1704,14 @@ function setGenderFilter(type) {
    ========================================================================== */
 
 // Working copy of filters edited inside the drawer, committed on "Apply Filters"
-let draftFilters = null;
+let draftFilters = {
+  categories: new Set(),
+  dateFilter: null,
+  duration: null,
+  gender: null,
+  location: null,
+  distanceKm: null,
+};
 
 function openFilterModal() {
   // Start the draft from the currently applied filters
@@ -1818,11 +1830,37 @@ function setDurationFilter(value, element) {
 }
 
 function setGenderFilter(value, element) {
-  draftFilters.gender = draftFilters.gender === value ? null : value;
-  document
-    .querySelectorAll("#filter-gender-group .filter-option-btn")
-    .forEach((btn) => btn.classList.remove("active"));
-  if (draftFilters.gender) element.classList.add("active");
+  if (element) {
+    draftFilters.gender = draftFilters.gender === value ? null : value;
+    document
+      .querySelectorAll("#filter-gender-group .filter-option-btn")
+      .forEach((btn) => btn.classList.remove("active"));
+    if (draftFilters.gender) element.classList.add("active");
+  } else {
+    // Quick chips on home page
+    const allChip = document.getElementById("chip-gender-all");
+    const boysChip = document.getElementById("chip-gender-boys");
+    const girlsChip = document.getElementById("chip-gender-girls");
+
+    state.activeFilterChips.delete("boys");
+    state.activeFilterChips.delete("girls");
+
+    if (allChip) allChip.classList.remove("active");
+    if (boysChip) boysChip.classList.remove("active");
+    if (girlsChip) girlsChip.classList.remove("active");
+
+    if (value === "boys") {
+      state.activeFilterChips.add("boys");
+      if (boysChip) boysChip.classList.add("active");
+    } else if (value === "girls") {
+      state.activeFilterChips.add("girls");
+      if (girlsChip) girlsChip.classList.add("active");
+    } else {
+      if (allChip) allChip.classList.add("active");
+    }
+
+    renderListings();
+  }
 }
 
 function selectLocality(name) {
@@ -2904,6 +2942,8 @@ function handlePostSubmit(e) {
         document.getElementById("display-post-time").innerText = "🕐 Select Shift Timing";
       
       renderCategoryTabs();
+      renderListings();
+      showToast("✅ Work requirement posted successfully!");
     } else {
       console.error("Backend Error:", data.error);
       alert("Failed to post job to backend. Check console.");
@@ -2917,19 +2957,14 @@ function handlePostSubmit(e) {
     createJobNotification(newOpening);
     closePostModal();
     e.target.reset();
+    if (document.getElementById("display-post-date"))
+      document.getElementById("display-post-date").innerText = "📅 Select Date";
+    if (document.getElementById("display-post-time"))
+      document.getElementById("display-post-time").innerText = "🕐 Select Shift Timing";
     renderCategoryTabs();
-    showToast("Server offline - Local test mode");
+    renderListings();
+    showToast("✅ Work requirement posted (local mode)!");
   });
-
-  if (document.getElementById("display-post-date"))
-    document.getElementById("display-post-date").innerText = "📅 Select Date";
-  if (document.getElementById("display-post-time"))
-    document.getElementById("display-post-time").innerText =
-      "🕐 Select Shift Timing";
-
-  renderCategoryTabs();
-  renderListings();
-  showToast("✅ Work requirement posted successfully!");
 }
 
 /* ==========================================================================
@@ -3912,12 +3947,14 @@ function setQuickTime(timeStr) {
 }
 
 function calculateDuration(startStr, endStr) {
+  if (!startStr || !endStr || typeof startStr !== "string" || typeof endStr !== "string") return "0 hrs";
   const parseTime = (t) => {
+    if (!t || !t.includes(" ")) return 0;
     let [time, modifier] = t.split(" ");
-    let [hours, minutes] = time.split(":");
+    let [hours, minutes] = time ? time.split(":") : [0, 0];
     if (hours === "12") hours = "00";
     if (modifier === "PM") hours = parseInt(hours, 10) + 12;
-    return parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+    return parseInt(hours, 10) * 60 + parseInt(minutes || 0, 10);
   };
 
   const startMins = parseTime(startStr);
@@ -4091,23 +4128,29 @@ function filterCategories() {
     .filter((c) => c.toLowerCase().includes(query))
     .forEach((cat) => {
       const isOther = cat === "Other";
-      list.innerHTML += `<div class="btn-secondary-sidebar" style="justify-content: flex-start; padding: 12px; border-radius: 8px; cursor: pointer; text-align: left;" onclick="selectCategory('${cat}')">
+      list.innerHTML += `<div class="btn-secondary-sidebar" style="justify-content: flex-start; padding: 12px; border-radius: 8px; cursor: pointer; text-align: left;" onclick="selectPostCategory('${cat}')">
       ${isOther ? "✨" : "💼"} ${cat}
     </div>`;
     });
 }
-function selectCategory(cat) {
-  document.getElementById("post-category").value = cat;
-  document.getElementById("display-post-category").innerText = `💼 ${cat}`;
-  document.getElementById("display-post-category").style.fontWeight = "700";
-  document.getElementById("display-post-category").style.color =
-    "var(--text-primary)";
+function selectPostCategory(cat) {
+  const postCat = document.getElementById("post-category");
+  if (postCat) postCat.value = cat;
+  const dispCat = document.getElementById("display-post-category");
+  if (dispCat) {
+    dispCat.innerText = `💼 ${cat}`;
+    dispCat.style.fontWeight = "700";
+    dispCat.style.color = "var(--text-primary)";
+  }
 
   if (cat === "Other") {
-    document.getElementById("other-category-group").style.display = "block";
+    const otherGroup = document.getElementById("other-category-group");
+    if (otherGroup) otherGroup.style.display = "block";
   } else {
-    document.getElementById("other-category-group").style.display = "none";
-    document.getElementById("post-category-other").value = "";
+    const otherGroup = document.getElementById("other-category-group");
+    if (otherGroup) otherGroup.style.display = "none";
+    const postCatOther = document.getElementById("post-category-other");
+    if (postCatOther) postCatOther.value = "";
   }
   closeCategoryPickerModal();
 }
