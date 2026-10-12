@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { ChatMessage } from '@/types';
+import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
 export default function ChatModal() {
   const { activeModal, activeModalShift, closeModal, userProfile } = useApp();
@@ -17,10 +18,13 @@ export default function ChatModal() {
 
   useEffect(() => {
     if (activeModal === 'chat-modal') {
+      const convId = activeModalShift?.id || 'conv-general';
+
       // Default welcome message from dealer
-      setMessages([
+      const initial: ChatMessage[] = [
         {
           id: 'welcome-msg',
+          conversationId: convId,
           senderId: 'dealer_system',
           senderName: dealerName,
           receiverId: userProfile.id,
@@ -28,9 +32,72 @@ export default function ChatModal() {
           timestamp: new Date().toISOString(),
           read: true,
         },
-      ]);
+      ];
+      setMessages(initial);
+
+      if (isSupabaseConfigured()) {
+        const supabase = getSupabaseBrowserClient();
+
+        // Fetch existing messages
+        supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', convId)
+          .order('created_at', { ascending: true })
+          .then(({ data: dbMsgs }) => {
+            if (dbMsgs && dbMsgs.length > 0) {
+              const mapped: ChatMessage[] = dbMsgs.map((m: any) => ({
+                id: m.id,
+                conversationId: m.conversation_id,
+                senderId: m.sender_id,
+                senderName: m.sender_id === userProfile.id ? userProfile.name : dealerName,
+                receiverId: m.receiver_id || undefined,
+                message: m.message,
+                timestamp: m.created_at,
+                read: m.read || false,
+              }));
+              setMessages([...initial, ...mapped]);
+            }
+          });
+
+        // Realtime subscription for incoming messages
+        const channel = supabase
+          .channel(`chat:${convId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'messages',
+              filter: `conversation_id=eq.${convId}`,
+            },
+            (payload) => {
+              const newMsg = payload.new as any;
+              if (newMsg.sender_id !== userProfile.id) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: newMsg.id,
+                    conversationId: newMsg.conversation_id,
+                    senderId: newMsg.sender_id,
+                    senderName: dealerName,
+                    receiverId: newMsg.receiver_id || undefined,
+                    message: newMsg.message,
+                    timestamp: newMsg.created_at,
+                    read: true,
+                  },
+                ]);
+              }
+            }
+          )
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
     }
-  }, [activeModal, activeModalShift, dealerName, userProfile.id]);
+  }, [activeModal, activeModalShift, dealerName, userProfile.id, userProfile.name]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -44,8 +111,10 @@ export default function ChatModal() {
     const text = inputMessage.trim();
     if (!text) return;
 
+    const convId = activeModalShift?.id || 'conv-general';
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
+      conversationId: convId,
       senderId: userProfile.id,
       senderName: userProfile.name,
       receiverId: activeModalShift?.dealerName || 'dealer',
@@ -57,13 +126,27 @@ export default function ChatModal() {
     setMessages((prev) => [...prev, userMsg]);
     setInputMessage('');
 
-    // Simulate dealer response
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        (supabase.from('messages') as any).insert({
+          conversation_id: convId,
+          sender_id: userProfile.id,
+          message: text,
+        });
+      } catch (err) {
+        console.warn('Supabase message send error:', err);
+      }
+    }
+
+    // Simulated auto-reply
     setTimeout(() => {
       setIsTyping(true);
       setTimeout(() => {
         setIsTyping(false);
         const replyMsg: ChatMessage = {
           id: `reply-${Date.now()}`,
+          conversationId: convId,
           senderId: 'dealer_system',
           senderName: dealerName,
           receiverId: userProfile.id,

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Applicant } from '@/types';
+import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 const defaultApplicantsList: Applicant[] = [
   {
@@ -41,6 +42,15 @@ export default function ManageApplicantsModal() {
   const handleAccept = (appId: string, name: string) => {
     setHiredStatus((prev) => ({ ...prev, [appId]: true }));
     showToast(`Accepted ${name}! Shift confirmed.`);
+
+    if (isSupabaseConfigured() && !appId.startsWith('app-default')) {
+      const supabase = getSupabaseBrowserClient();
+      supabase
+        .from('applications')
+        .update({ status: 'accepted' })
+        .eq('id', appId)
+        .then(() => {});
+    }
   };
 
   const handleDecline = (appId: string) => {
@@ -50,6 +60,15 @@ export default function ManageApplicantsModal() {
       return next;
     });
     showToast('Applicant declined.');
+
+    if (isSupabaseConfigured() && !appId.startsWith('app-default')) {
+      const supabase = getSupabaseBrowserClient();
+      supabase
+        .from('applications')
+        .update({ status: 'rejected' })
+        .eq('id', appId)
+        .then(() => {});
+    }
   };
 
   const handleTrack = (name: string) => {

@@ -14,7 +14,7 @@ export default function LoginModal() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login();
+    login(email, password);
   };
 
   return (
