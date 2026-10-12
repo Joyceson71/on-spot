@@ -1,0 +1,14 @@
+{
+  "name": "onspot",
+  "version": "1.0.0",
+  "description": "OnSpot Part-Time Work Platform",
+  "main": "app.js",
+  "scripts": {
+    "start": "npx serve .",
+    "generate": "node generate_jobs.js",
+    "remove-bg": "node remove-bg.js"
+  },
+  "dependencies": {
+    "jimp": "^1.6.1"
+  }
+}
