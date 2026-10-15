@@ -1,13 +1,11 @@
 -- ============================================================================
--- ONSPOP DATABASE SCHEMA & RLS POLICIES
--- Initial Migration: Profiles, Jobs, Applications, Saved Jobs, Messages, Notifs
+-- ONSPOP DATABASE SCHEMA & RLS POLICIES (idempotent / safe to re-run)
 -- ============================================================================
 
--- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ----------------------------------------------------------------------------
--- 1. PROFILES TABLE
+-- 1. PROFILES
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -23,24 +21,22 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Profiles Policies
-CREATE POLICY "Public profiles are viewable by everyone" 
-  ON public.profiles FOR SELECT 
-  USING (true);
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
+CREATE POLICY "Public profiles are viewable by everyone"
+  ON public.profiles FOR SELECT USING (true);
 
-CREATE POLICY "Users can insert their own profile" 
-  ON public.profiles FOR INSERT 
-  WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Users can update their own profile" 
-  ON public.profiles FOR UPDATE 
-  USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile"
+  ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
 -- ----------------------------------------------------------------------------
--- 2. JOBS TABLE
+-- 2. JOBS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -78,28 +74,31 @@ CREATE TABLE IF NOT EXISTS public.jobs (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS
+-- Your live table already has start_at (NOT NULL), which this file didn't define.
+-- These lines make a fresh database match it, and do nothing if the columns exist.
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS start_at TIMESTAMPTZ;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS end_at TIMESTAMPTZ;
+
 ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 
--- Jobs Policies
-CREATE POLICY "Jobs are viewable by everyone" 
-  ON public.jobs FOR SELECT 
-  USING (true);
+DROP POLICY IF EXISTS "Jobs are viewable by everyone" ON public.jobs;
+CREATE POLICY "Jobs are viewable by everyone"
+  ON public.jobs FOR SELECT USING (true);
 
-CREATE POLICY "Dealers can insert jobs" 
-  ON public.jobs FOR INSERT 
-  WITH CHECK (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Dealers can insert jobs" ON public.jobs;
+CREATE POLICY "Dealers can insert jobs"
+  ON public.jobs FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
-CREATE POLICY "Dealers can update their own jobs" 
-  ON public.jobs FOR UPDATE 
-  USING (auth.uid() = dealer_id);
+DROP POLICY IF EXISTS "Dealers can update their own jobs" ON public.jobs;
+CREATE POLICY "Dealers can update their own jobs"
+  ON public.jobs FOR UPDATE USING (auth.uid() = dealer_id);
 
-CREATE POLICY "Dealers can delete their own jobs" 
-  ON public.jobs FOR DELETE 
-  USING (auth.uid() = dealer_id);
+DROP POLICY IF EXISTS "Dealers can delete their own jobs" ON public.jobs;
+CREATE POLICY "Dealers can delete their own jobs"
+  ON public.jobs FOR DELETE USING (auth.uid() = dealer_id);
 
 -- ----------------------------------------------------------------------------
--- 3. APPLICATIONS TABLE
+-- 3. APPLICATIONS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.applications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -112,30 +111,30 @@ CREATE TABLE IF NOT EXISTS public.applications (
   UNIQUE(job_id, user_id)
 );
 
--- Enable RLS
 ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
 
--- Applications Policies
-CREATE POLICY "Users can view their own applications or dealers can view applicants for their jobs" 
-  ON public.applications FOR SELECT 
+DROP POLICY IF EXISTS "Users can view their own applications or dealers can view applicants for their jobs" ON public.applications;
+CREATE POLICY "Users can view their own applications or dealers can view applicants for their jobs"
+  ON public.applications FOR SELECT
   USING (
-    auth.uid() = user_id OR 
+    auth.uid() = user_id OR
     EXISTS (SELECT 1 FROM public.jobs WHERE jobs.id = applications.job_id AND jobs.dealer_id = auth.uid())
   );
 
-CREATE POLICY "Users can apply for shifts" 
-  ON public.applications FOR INSERT 
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can apply for shifts" ON public.applications;
+CREATE POLICY "Users can apply for shifts"
+  ON public.applications FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users or dealers can update applications" 
-  ON public.applications FOR UPDATE 
+DROP POLICY IF EXISTS "Users or dealers can update applications" ON public.applications;
+CREATE POLICY "Users or dealers can update applications"
+  ON public.applications FOR UPDATE
   USING (
-    auth.uid() = user_id OR 
+    auth.uid() = user_id OR
     EXISTS (SELECT 1 FROM public.jobs WHERE jobs.id = applications.job_id AND jobs.dealer_id = auth.uid())
   );
 
 -- ----------------------------------------------------------------------------
--- 4. SAVED JOBS (BOOKMARKS) TABLE
+-- 4. SAVED JOBS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.saved_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -145,24 +144,22 @@ CREATE TABLE IF NOT EXISTS public.saved_jobs (
   UNIQUE(user_id, job_id)
 );
 
--- Enable RLS
 ALTER TABLE public.saved_jobs ENABLE ROW LEVEL SECURITY;
 
--- Saved Jobs Policies
-CREATE POLICY "Users can view their own saved jobs" 
-  ON public.saved_jobs FOR SELECT 
-  USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can view their own saved jobs" ON public.saved_jobs;
+CREATE POLICY "Users can view their own saved jobs"
+  ON public.saved_jobs FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can save jobs" 
-  ON public.saved_jobs FOR INSERT 
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can save jobs" ON public.saved_jobs;
+CREATE POLICY "Users can save jobs"
+  ON public.saved_jobs FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete their saved jobs" 
-  ON public.saved_jobs FOR DELETE 
-  USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete their saved jobs" ON public.saved_jobs;
+CREATE POLICY "Users can delete their saved jobs"
+  ON public.saved_jobs FOR DELETE USING (auth.uid() = user_id);
 
 -- ----------------------------------------------------------------------------
--- 5. MESSAGES TABLE
+-- 5. MESSAGES
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -174,24 +171,23 @@ CREATE TABLE IF NOT EXISTS public.messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
--- Messages Policies
-CREATE POLICY "Users can view messages they sent or received" 
-  ON public.messages FOR SELECT 
+DROP POLICY IF EXISTS "Users can view messages they sent or received" ON public.messages;
+CREATE POLICY "Users can view messages they sent or received"
+  ON public.messages FOR SELECT
   USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 
-CREATE POLICY "Users can send messages" 
-  ON public.messages FOR INSERT 
-  WITH CHECK (auth.uid() = sender_id);
+DROP POLICY IF EXISTS "Users can send messages" ON public.messages;
+CREATE POLICY "Users can send messages"
+  ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
-CREATE POLICY "Receivers can update message read status" 
-  ON public.messages FOR UPDATE 
-  USING (auth.uid() = receiver_id);
+DROP POLICY IF EXISTS "Receivers can update message read status" ON public.messages;
+CREATE POLICY "Receivers can update message read status"
+  ON public.messages FOR UPDATE USING (auth.uid() = receiver_id);
 
 -- ----------------------------------------------------------------------------
--- 6. NOTIFICATIONS TABLE
+-- 6. NOTIFICATIONS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -204,31 +200,24 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
--- Notifications Policies
-CREATE POLICY "Users can view their own notifications" 
-  ON public.notifications FOR SELECT 
-  USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
+CREATE POLICY "Users can view their own notifications"
+  ON public.notifications FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can update their notifications" 
-  ON public.notifications FOR UPDATE 
-  USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update their notifications" ON public.notifications;
+CREATE POLICY "Users can update their notifications"
+  ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
 
 -- ----------------------------------------------------------------------------
--- 7. AUTH TRIGGER: AUTOMATIC PROFILE CREATION ON USER SIGNUP
+-- 7. AUTH TRIGGER: AUTO-CREATE PROFILE ON SIGNUP
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (
-    id,
-    name,
-    email,
-    phone,
-    role
-  ) VALUES (
+  INSERT INTO public.profiles (id, name, email, phone, role)
+  VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     NEW.email,
@@ -240,14 +229,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger definition
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Enable Realtime publication for jobs, messages, applications, and notifications
-ALTER PUBLICATION supabase_realtime ADD TABLE public.jobs;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.applications;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+-- ----------------------------------------------------------------------------
+-- 8. REALTIME (only adds tables not already in the publication)
+-- ----------------------------------------------------------------------------
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['jobs', 'messages', 'applications', 'notifications']
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    END IF;
+  END LOOP;
+END $$;
